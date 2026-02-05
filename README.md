@@ -10,6 +10,9 @@ Knative function that receives **CloudEvents**, optionally filters them (typical
 - Loads configuration from environment variables (all `NA_*`).
 - Applies attribute filters (e.g. `type`, `source`, `subject`, extensions).
 - Selects templates based on CloudEvent `type`.
+- Renders templates from either:
+  - inline templates provided via env vars (recommended for Knative manifest-based config), or
+  - template files on disk.
 - Sends email using a pluggable client backend (default: `yagmail`).
 
 ## Logging
@@ -26,13 +29,30 @@ Knative function that receives **CloudEvents**, optionally filters them (typical
 - `NA_FILTER_MODE`: `all` (default) or `any`.
 
 ### Template selection
-- `NA_TEMPLATES_DIR`: templates folder.
-  - **Local default**: the repo’s `./templates` directory (resolved automatically).
-  - **Container default**: `/app/templates` (the Dockerfile copies templates there).
 - `NA_TEMPLATE_MAP_JSON`: JSON object mapping CloudEvent type to template base name.
   - Example: `{"com.acme.job.done":"job_done"}`
 - `NA_TEMPLATE_DEFAULT`: fallback template base name (default `default`).
 - `NA_TEMPLATE_STRICT_UNDEFINED`: `true|false` (default `false`).
+
+### Template loading (inline vs filesystem)
+The renderer chooses templates in this order:
+1. **Inline templates** from `NA_TEMPLATES_INLINE_JSON` (if set and non-empty)
+2. Filesystem templates from `NA_TEMPLATES_DIR`
+
+#### Inline templates (recommended for Knative manifests)
+- `NA_TEMPLATES_INLINE_JSON`: JSON object mapping template filenames to template content.
+
+Example value:
+- `{"default.subject.j2":"[{{ ce.type }}] Notification","default.txt.j2":"Hello {{ data.name }}"}`
+
+Notes:
+- Keys must be the exact template filenames the renderer looks up, e.g. `default.subject.j2`, `default.txt.j2`, `default.html.j2`.
+- When embedding JSON in YAML (Knative manifests), make sure to quote/escape properly (usually a YAML block scalar is easiest).
+
+#### Filesystem templates
+- `NA_TEMPLATES_DIR`: templates folder.
+  - **Local default**: the repo’s `./templates` directory (resolved automatically).
+  - **Container default**: `/app/templates` (the Dockerfile copies templates there).
 
 ### Email
 - `NA_EMAIL_CLIENT`: email backend (default `yagmail`).
