@@ -36,6 +36,9 @@ class Settings(BaseModel):
     template_default: str = Field(default="default", alias="NA_TEMPLATE_DEFAULT")
     template_strict_undefined: bool = Field(default=False, alias="NA_TEMPLATE_STRICT_UNDEFINED")
 
+    #inline templates: {"default.subject.j2": "...", "default.txt.j2": "...", "default.html.j2": "..."}
+    templates_inline_json: dict[str, str] = Field(default_factory=dict, alias="NA_TEMPLATES_INLINE_JSON")
+
     #email addressing defaults
     email_from: str | None = Field(default=None, alias="NA_EMAIL_FROM")
     email_to: list[str] = Field(default_factory=list, alias="NA_EMAIL_TO")
@@ -87,6 +90,20 @@ class Settings(BaseModel):
                 raise ValueError("NA_TEMPLATE_MAP_JSON must be a JSON object")
             return {str(k): str(val) for k, val in obj.items()}
         raise TypeError("NA_TEMPLATE_MAP_JSON must be a JSON object string")
+
+    @field_validator("templates_inline_json", mode="before")
+    @classmethod
+    def _parse_templates_inline_json(cls, v: Any) -> dict[str, str]:
+        if v in (None, ""):
+            return {}
+        if isinstance(v, dict):
+            return {str(k): str(val) for k, val in v.items()}
+        if isinstance(v, str):
+            obj = json.loads(v)
+            if not isinstance(obj, dict):
+                raise ValueError("NA_TEMPLATES_INLINE_JSON must be a JSON object")
+            return {str(k): str(val) for k, val in obj.items()}
+        raise TypeError("NA_TEMPLATES_INLINE_JSON must be a JSON object string")
 
     @field_validator("email_to", "email_cc", "email_bcc", mode="before")
     @classmethod

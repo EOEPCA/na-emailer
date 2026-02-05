@@ -1,15 +1,20 @@
 from __future__ import annotations
 import os
 from typing import Any
-from jinja2 import Environment, FileSystemLoader, StrictUndefined, TemplateNotFound
+from jinja2 import DictLoader, Environment, FileSystemLoader, StrictUndefined, TemplateNotFound
 from .config import Settings
 from .models import EventContext
 
 
 class TemplateRenderer:
     def __init__(self, settings: Settings):
+        if settings.templates_inline_json:
+            loader = DictLoader(settings.templates_inline_json)
+        else:
+            loader = FileSystemLoader(settings.templates_dir)
+
         env_kwargs: dict[str, Any] = {
-            "loader": FileSystemLoader(settings.templates_dir),
+            "loader": loader,
             "autoescape": True,
         }
         if settings.template_strict_undefined:
