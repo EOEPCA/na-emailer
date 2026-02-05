@@ -3,7 +3,7 @@ name = "na-emailer"
 version = "0.1.0"
 description = "Knative function that turns CloudEvents into email notifications"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 
 dependencies = [
   "functions-framework>=3.5.0",
@@ -13,6 +13,7 @@ dependencies = [
   "pydantic>=2.6.0",
 ]
 
+#not currently used
 [project.optional-dependencies]
 test = [
   "pytest>=8.0.0",
@@ -20,6 +21,7 @@ test = [
   "requests>=2.31.0",
 ]
 
+#not currently used
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
