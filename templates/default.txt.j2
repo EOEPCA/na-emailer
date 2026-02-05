@@ -1,0 +1,10 @@
+CloudEvent received.
+
+id: {{ ce.id }}
+type: {{ ce.type }}
+source: {{ ce.source }}
+subject: {{ ce.subject }}
+time: {{ ce.time }}
+
+Data:
+{{ data | tojson(indent=2) }}

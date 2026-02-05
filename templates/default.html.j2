@@ -1,0 +1,14 @@
+<html>
+  <body>
+    <h3>CloudEvent received</h3>
+    <ul>
+      <li><b>id</b>: {{ ce.id }}</li>
+      <li><b>type</b>: {{ ce.type }}</li>
+      <li><b>source</b>: {{ ce.source }}</li>
+      <li><b>subject</b>: {{ ce.subject }}</li>
+      <li><b>time</b>: {{ ce.time }}</li>
+    </ul>
+    <h4>Data</h4>
+    <pre>{{ data | tojson(indent=2) }}</pre>
+  </body>
+</html>
