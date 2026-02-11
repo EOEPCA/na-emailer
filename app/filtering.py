@@ -5,7 +5,7 @@ from .models import EventContext
 
 def _get_attr(ctx: EventContext,
               key: str) -> Any:
-    #Support CloudEvent top-level attributes and extensions only.
+    #support ce top-level attributes and extensions only.
     if hasattr(ctx, key):
         return getattr(ctx, key)
     return ctx.extensions.get(key)

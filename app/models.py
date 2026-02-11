@@ -17,7 +17,7 @@ class EmailMessage:
 
 @dataclass(frozen=True)
 class EventContext:
-    # CloudEvent attributes
+    #ce attributes
     id: str
     source: str
     type: str
@@ -25,9 +25,8 @@ class EventContext:
     time: str | None
     dataschema: str | None
     datacontenttype: str | None
-    # raw data
+    #raw data
     data: Any
-    # extensions
     extensions: Mapping[str, Any]
 
     def as_template_dict(self) -> dict[str, Any]:

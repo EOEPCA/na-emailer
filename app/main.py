@@ -36,7 +36,7 @@ _configure_logging(os.getenv("NA_LOG_LEVEL", "INFO"))
 
 
 def _ctx_from_cloudevent(ce) -> EventContext:
-    # CloudEvents SDK objects are mapping-like, but dict(ce) is not reliable across versions.
+    #ce SDK objects are mapping-like, but dict(ce) is not reliable across versions.
     spec_keys = {
         "id",
         "source",
@@ -49,7 +49,6 @@ def _ctx_from_cloudevent(ce) -> EventContext:
         "data",
     }
 
-    # Prefer SDK internal attribute storage when available; fall back to empty.
     raw_attrs = getattr(ce, "_attributes", None)
     if isinstance(raw_attrs, dict):
         attrs = raw_attrs
