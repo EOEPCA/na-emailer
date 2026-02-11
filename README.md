@@ -1,8 +1,5 @@
 # na-emailer
 
-__WARNING__: This README.md is a work in progress and may contain outdated information.
-
-
 Knative function that receives **CloudEvents**, optionally filters them (typically via configuration injected by a **Knative SinkBinding**), renders **Jinja2** templates (subject + plain/html), and sends an email notification.
 
 ## How it works
