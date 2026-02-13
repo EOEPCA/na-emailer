@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir -U pip \
 ENV PORT=8080
 EXPOSE 8080
 
-CMD ["functions-framework", "--target", "handle", "--port", "8080"]
+CMD ["functions-framework", "--target", "handle", "--source", "app/main.py", "--port", "8080"]
