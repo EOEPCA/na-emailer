@@ -1,6 +1,6 @@
 # na-emailer
 
-Knative function that receives **CloudEvents**, optionally filters them (typically via configuration injected by a **Knative SinkBinding**), renders **Jinja2** templates (subject + plain/html), and sends an email notification.
+Knative function that receives **CloudEvents**, optionally filters them (typically via configuration injected by a **Knative SinkBinding**), renders **Jinja2** templates (subject + plain/html) or direct MIME messages, and sends an email notification.
 
 ## How it works
 - Accepts an incoming HTTP request carrying a CloudEvent (binary or structured).
@@ -69,7 +69,7 @@ Optional:
 - `NA_YAGMAIL_HOST`, `NA_YAGMAIL_PORT`
 - `NA_YAGMAIL_SMTP_STARTTLS`, `NA_YAGMAIL_SMTP_SSL`
 
-Note: In case of standard Gmail account this settings are not required.
+Note: In case of standard Gmail account the latter settings are not required.
 
 ## Templates
 Templates are chosen by **base name**.
@@ -83,7 +83,7 @@ The template context includes:
 - `ce`: CloudEvent attributes (plus extensions)
 - `data`: the CloudEvent data
 
-Note: If `inline_templates` are provided, the html template is prioritized and used for email body. If only the text template is provided, it will be used as the email body.
+Note: If `inline_templates` are provided, the HTML template is prioritized and used for email body. If only the text template is provided, it will be used as the email body.
 ## Local development
 ### Option A: run via `start.py` (recommended)
 This prints an explicit “Waiting for CloudEvents...” line and defaults to dry-run.
@@ -103,6 +103,8 @@ functions-framework --target handle --port 8080
 
 ### Send a test CloudEvent
 
+Template based example:
+
 ```zsh
 curl -i http://localhost:8080/ \
   -H 'Content-Type: application/cloudevents+json' \
@@ -112,19 +114,18 @@ curl -i http://localhost:8080/ \
   "source": "/local",
   "type": "com.acme.test",
   "datacontenttype": "application/json",
+  "emailto": [
+      "test_to@gmail.com"
+    ],
+    "emailcc": [
+      "test_cc@gmail.com"
+    ],
+    "emailbcc": [
+    ],
   "data": {
     "name": "Hello world",
-    "subject": "NA Notification Test 3",
-    "email_to": [
-      "juhasz.gabriel@gmail.com"
-    ],
-    "email_cc": [
-      "juhasz_gabriel@yahoo.com"
-    ],
-    "email_bcc": [
-    ],
     "templates_inline_json": {
-      "default.subject.j2": "[{{ ce.type }}] Notification",
+      "default.subject.j2": "Notification [{{ ce.type }}] ",
       "default.txt.j2": "Hello {{ data.name }}\n\nCloudEvent: {{ ce.id }}\nType: {{ ce.type }}\nSource: {{ ce.source }}\n",
       "default.html.j2": "<!doctype html>\n<html>\n  <body style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;\">\n    <h2>NA Notification</h2>\n    <p><b>Name:</b> {{ data.name }}</p>\n\n    <h3>CloudEvent</h3>\n    <ul>\n      <li><b>id</b>: {{ ce.id }}</li>\n      <li><b>type</b>: {{ ce.type }}</li>\n      <li><b>source</b>: {{ ce.source }}</li>\n      <li><b>subject</b>: {{ ce.subject }}</li>\n      <li><b>time</b>: {{ ce.time }}</li>\n    </ul>\n\n    <h3>Data</h3>\n    <pre style=\"background:#f6f8fa;padding:12px;border-radius:6px;\">{{ data | tojson(indent=2) }}</pre>\n  </body>\n</html>\n"
     }
@@ -133,8 +134,36 @@ curl -i http://localhost:8080/ \
 '
 
 ```
+NOTE: 
+- Only `emailto` is required.
+- Email subject will be rendered with the provided `default.subject.j2` template, the default version is also presented in the above example.
+- The email body will be rendered with the provided `default.html.j2` template, if not provided it will fallback to `default.txt.j2`. If neither of them is provided, the renderer will use a built-in default templates.
 
-## Notes
+
+MIME example:
+
+```zsh
+curl --location --request GET 'http://localhost:8080/' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "specversion": "1.0",
+  "id": "mime-1",
+  "source": "/local",
+  "type": "com.acme.test_mime",
+  "emailto": [
+      "test_to@gmail.com"
+    ],
+  "datacontenttype": "mime/multipart",
+  "data": "Subject: Example multipart/alternative  12 message\nDate: ...\nMessage-Id: ...\nMIME-Version: 1.0\nContent-Type: multipart/mixed; boundary=\"...\"\n\n--...\nContent-Type: multipart/alternative; boundary=\"...\"\n\n--...\nContent-Type: text/plain; charset=\"utf-8\"\n.TEST.\n"
+  
+}'
+```
+
+Note: 
+- In this case the email content is directly provided in the `data` field as a raw MIME message. The renderer will parse the MIME message and send it as-is, ignoring any templates. The `emailto` field is still required to determine the recipients and will be added automatically.
+- Please note that the `datacontenttype` must be set to `mime/multipart` to indicate that the email content is provided as a raw MIME message, otherwise the renderer will attempt to process the content as a regular CloudEvent data and render templates, which may lead to unexpected results.
+
+## Final Notes
 This repo is intentionally small and focused (core runtime + tests).
 
 Add new email backends by implementing `app.clients.base.EmailClient` and wiring it in `app.clients.factory.create_email_client`.
