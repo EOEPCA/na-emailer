@@ -49,6 +49,9 @@ def _ctx_from_cloudevent(ce) -> EventContext:
         "subject",
         "time",
         "dataschema",
+        "emailto",
+        "emailcc",
+        "emailbcc",
         "datacontenttype",
         "data",
     }
@@ -67,6 +70,9 @@ def _ctx_from_cloudevent(ce) -> EventContext:
         subject=ce.get("subject"),
         time=ce.get("time"),
         dataschema=ce.get("dataschema"),
+        emailto=ce.get("emailto"),
+        emailcc=ce.get("emailcc"),
+        emailbcc=ce.get("emailbcc"),
         datacontenttype=ce.get("datacontenttype"),
         data=ce.data,
         extensions=extensions,
@@ -109,6 +115,27 @@ def _recipients_from_event(ctx: EventContext, filter="email_to") -> list[str]:
 
     return []
 
+def _recipients_from_event_v2(ctx: EventContext):
+    #support both ce-email_to and email_to in data for maximum flexibility.
+    return _parse_recipients(ctx.emailto), _parse_recipients(ctx.emailcc), _parse_recipients(ctx.emailbcc)
+
+def _extract_raw_mime(ctx: EventContext) -> str | None:
+    data: Any = ctx.data
+    if data is None:
+        return None
+    if isinstance(data, (bytes, bytearray)):
+        try:
+            return bytes(data).decode("utf-8", errors="replace")
+        except Exception:
+            return None
+    if isinstance(data, str):
+        return data
+    if isinstance(data, dict):
+        raw = data.get("raw_mime") or data.get("mime") or data.get("message")
+        if isinstance(raw, str) and raw.strip():
+            return raw
+    return None
+
 @functions_framework.http
 def handle(request: Request):
     settings = load_settings()
@@ -140,9 +167,62 @@ def handle(request: Request):
         )
         return ("", 204)
 
-    #if ce contains inline templates
+
+
+    #CE overrides NA_EMAIL_TO if present, to allow dynamic recipients per event.
+    # event_recipients = _recipients_from_event(ctx)
+    # event_cc = _recipients_from_event(ctx, filter="email_cc")
+    # event_bcc = _recipients_from_event(ctx, filter="email_bcc")
+
+    event_recipients, event_cc, event_bcc =_recipients_from_event_v2(ctx)
+
+    recipients = event_recipients or settings.email_to
+    email_cc = event_cc or settings.email_cc
+    email_bcc = event_bcc or settings.email_bcc
+
+    #MIME multipart mode: bypass templating and send raw MIME as-is.
+    raw_mime = None
+    if (ctx.datacontenttype or "").strip().lower() in {"mimemultipart", "mime/multipart", "multipart/mixed"}:
+        raw_mime = _extract_raw_mime(ctx)
+        if not raw_mime:
+            return ("Missing raw MIME payload in CloudEvent data", 400)
+        print(raw_mime)
+        msg = EmailMessage(
+            subject="",
+            text=None,
+            html=None,
+            sender=settings.email_from,
+            to=recipients,
+            cc=email_cc,
+            bcc=email_bcc,
+            headers={
+                "X-CloudEvent-ID": ctx.id,
+                "X-CloudEvent-Type": ctx.type,
+                "X-CloudEvent-Source": ctx.source,
+            },
+            raw_mime=raw_mime,
+        )
+
+        if not (list(msg.to) or list(msg.cc) or list(msg.bcc)):
+            logger.warning("No recipients configured; skipping send", extra={"ce_id": ctx.id})
+            return ("", 202)
+
+        if settings.dry_run:
+            logger.info("DRY RUN raw MIME email (not sent)", extra={"ce_id": ctx.id})
+            return ("", 202)
+
+        try:
+            client = create_email_client(settings)
+            client.send(msg)
+        except Exception:
+            logger.exception("Failed to send raw MIME email")
+            return ("Email send failed", 502)
+
+        return ("", 202)
+
+    # if ce contains inline templates
     if ctx.data and isinstance(ctx.data, dict) and "templates_inline_json" in ctx.data:
-        settings.templates_inline_json =  ctx.data["templates_inline_json"]
+        settings.templates_inline_json = ctx.data["templates_inline_json"]
 
     try:
         renderer = TemplateRenderer(settings)
@@ -150,15 +230,6 @@ def handle(request: Request):
     except Exception:
         logger.exception("Failed to render email templates")
         return ("Template rendering failed", 500)
-
-    #CE overrides NA_EMAIL_TO if present, to allow dynamic recipients per event.
-    event_recipients = _recipients_from_event(ctx)
-    event_cc = _recipients_from_event(ctx, filter="email_cc")
-    event_bcc = _recipients_from_event(ctx, filter="email_bcc")
-
-    recipients = event_recipients or settings.email_to
-    email_cc = event_cc or settings.email_cc
-    email_bcc = event_bcc or settings.email_bcc
 
     msg = EmailMessage(
         subject=subject,
@@ -173,6 +244,7 @@ def handle(request: Request):
             "X-CloudEvent-Type": ctx.type,
             "X-CloudEvent-Source": ctx.source,
         },
+        raw_mime=raw_mime,
     )
     print(f"Prepared email message: subject='{msg.subject}', to={msg.to}, cc={msg.cc}, bcc={msg.bcc}")
 
